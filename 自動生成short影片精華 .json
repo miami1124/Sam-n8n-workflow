@@ -1,0 +1,517 @@
+{
+  "name": "YouTube AI 影片精華",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $('命名變數').item.json.videoUrl }}",
+          "mode": "url"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -1232,
+        592
+      ],
+      "id": "b1041e46-c52c-4efc-935e-d94a78258238",
+      "name": "下載影片",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "EickCpi8fyJ5UHtN",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "formTitle": "填寫檔案雲端連結",
+        "formDescription": "提供素材雲端連結",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "影片",
+              "placeholder": "影片連結"
+            },
+            {
+              "fieldLabel": "srt字幕檔",
+              "placeholder": "srt字幕檔"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.3,
+      "position": [
+        -1840,
+        592
+      ],
+      "id": "a5fa463e-d11d-4b19-9742-3c39241a6517",
+      "name": "On form submission",
+      "webhookId": "2ebeb258-6b62-4c51-b919-a9759cb5be7a"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "328e83b0-a1a7-433d-b6a9-056f15c4b0e1",
+              "name": "videoUrl",
+              "value": "={{ $json['影片'] }}",
+              "type": "string"
+            },
+            {
+              "id": "1d3ae109-988e-440f-9d60-ed6d3c7f9027",
+              "name": "subtitleUrl",
+              "value": "={{ $json['srt字幕檔'] }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1664,
+        592
+      ],
+      "id": "07dc0921-5a96-4766-b56c-0c732bf9e02b",
+      "name": "命名變數"
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $('命名變數').item.json.subtitleUrl }}",
+          "mode": "url"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -928,
+        592
+      ],
+      "id": "0fd85033-cf98-4735-8d44-f7150972f6f8",
+      "name": "下載字幕",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "EickCpi8fyJ5UHtN",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "destinationKey": "srt",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -592,
+        592
+      ],
+      "id": "ae4800e7-c043-4f5b-81c0-34ca2b4b2211",
+      "name": "轉成文字檔"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "GPT-4O"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=你是一位專業的短影音編輯師。請從以下字幕中挑選出一段最值得製作成短影片的片段：\n限制在 影片的中段時間區間\n長度必須 小於等於120秒\n不要截取片段開頭或結尾，需落在中段\n內容需具備：強烈吸引力、完整性（結尾不可斷在話說一半）、避開冗詞或無意義內容\n\n範例結果輸出格式如下：\n[\n  {\"start\": \"00:01:35\", \"end\": \"00:03:05\", \"reason\": \"(內容)\"},\n  ...\n]\n\n字幕內容如下：\n{{ $json.srt }}"
+            },
+            {
+              "content": "你是頂級的影片內容摘要專家，專門將繁體中文的 SRT 字幕整理成極度精簡、專業、結構化的時間軸重點。你的輸出必須只包含重點摘要，嚴禁任何解釋性或引導性文字。輸出最具重點的一段就好",
+              "role": "system"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        -400,
+        592
+      ],
+      "id": "f9611569-2ae4-4d6c-9f84-3f9b489c5668",
+      "name": "重點整理",
+      "credentials": {
+        "openAiApi": {
+          "id": "dvFQiP3wnloi1k4P",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/tmp/video.mp4",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        -1088,
+        592
+      ],
+      "id": "95cd5bc3-602a-4279-932a-0696476fca03",
+      "name": "影片寫入"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/tmp/subtitle.srt",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        -768,
+        592
+      ],
+      "id": "fd452e68-9e6a-40ab-8283-027ea6871ac7",
+      "name": "字幕寫入"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1152,
+        832
+      ],
+      "id": "5327e0a5-b4d2-4d3d-8671-e5520828ffdb",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.message.content.trim();\n\n// 嘗試抓取 ```json 包裹的內容\nconst match = raw.match(/```json\\s*([\\s\\S]*?)```/);\n\nlet jsonText = '';\nif (match) {\n  jsonText = match[1];\n} else {\n  // 如果沒有 markdown 包裹，就嘗試抓整段\n  jsonText = raw;\n}\n\nlet segments;\ntry {\n  segments = JSON.parse(jsonText);\n} catch (e) {\n  return [{ json: { error: 'JSON 解析失敗', detail: e.message } }];\n}\n\n// 處理每段資料：轉換時間格式、計算 duration\nreturn segments.map((item, index) => {\n  const start = item.start.replace(',', '.');\n  const end = item.end.replace(',', '.');\n\n  const toSeconds = (time) => {\n    const [h, m, s] = time.split(':');\n    return Number(h) * 3600 + Number(m) * 60 + Number(s);\n  };\n\n  const duration = parseFloat((toSeconds(end) - toSeconds(start)).toFixed(3));\n\n  return {\n    json: {\n      index,\n      reason: item.reason,\n      start,\n      end,\n      duration: duration > 0 ? duration : 1\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -96,
+        592
+      ],
+      "id": "3a58f2c5-34aa-4c0b-8f6d-0949fc0a3b3c",
+      "name": "移除 markdown 標記 + 轉成 JSON"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = items.map(item => item.json);\n\nfunction timeToSeconds(timeStr) {\n  const parts = timeStr.split(\":\").map(Number);\n  return parts[0] * 3600 + parts[1] * 60 + parts[2];\n}\n\nconst timestamp = Date.now();\n\nconst result = input.map((clip, index) => {\n  const start = clip.start;\n  const end = clip.end;\n  const duration = timeToSeconds(end) - timeToSeconds(start);\n\n  const filename = `final_clip_${index + 1}_${timestamp}.mp4`;\n  const outputPath = `/tmp/${filename}`;\n  \n  // **** 根據您提供的座標計算結果 ****\n  const videoOverlayY = 738; // 影片頂部邊緣的 Y 座標\n  const requiredHeight = 591; // 影片在模板上需要顯示的高度 (1329 - 738 = 591)\n  // ************************************\n\n  const ffmpegCommand = \n    `/root/.n8n/tools/ffmpeg -y ` + \n    `-i /tmp/template.jpg ` + // 輸入 0: 背景模板 (1080x1920)\n    `-ss ${start} -i /tmp/video.mp4 -t ${duration} ` + // 輸入 1: 原始影片\n    `-filter_complex ` + \n    // 1. 縮放影片到寬 1080 (保持比例)\n    // 2. 裁切影片高度到挖空區域的高度 591 像素\n    `\"[1:v]scale=1080:-1,crop=1080:${requiredHeight}[scaled_cropped_clip];` + \n    // 3. 將處理好的片段水平置中 (x=0) 疊加到模板上的指定 Y 座標處\n    `[0:v][scaled_cropped_clip]overlay=0:${videoOverlayY}\" ` + \n    `-c:v libx264 -c:a aac ${outputPath}`;\n\n  return {\n    json: {\n      index: index + 1,\n      start,\n      end,\n      reason: clip.reason,\n      duration,\n      ffmpegCommand,\n      outputPath\n    }\n  };\n});\n\nreturn result;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1360,
+        832
+      ],
+      "id": "98fe3357-0b4e-4124-993b-73b3add049f4",
+      "name": "產生剪輯命令1"
+    },
+    {
+      "parameters": {
+        "command": "={{ $json.ffmpegCommand }}"
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        -992,
+        928
+      ],
+      "id": "8cd979d4-a8d4-40eb-a9e7-441ca6da6e1e",
+      "name": "剪輯"
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "https://drive.google.com/file/d/13kO8gMV6TSh1kZNo6E_lx3kHzUMbeRFM/view?usp=sharing",
+          "mode": "url"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -1520,
+        592
+      ],
+      "id": "69bed9a4-bfc0-4507-ac5c-54f145d0e705",
+      "name": "下載模板圖片",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "EickCpi8fyJ5UHtN",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/tmp/template.jpg",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        -1376,
+        592
+      ],
+      "id": "98d14a73-8c0e-4147-a743-feb5f1154889",
+      "name": "模板寫入"
+    },
+    {
+      "parameters": {
+        "fileSelector": "={{ $node[\"產生剪輯命令1\"].json[\"outputPath\"] }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        -816,
+        816
+      ],
+      "id": "9131cfe5-7190-43bc-8570-43d927b1fd85",
+      "name": "讀取影片"
+    },
+    {
+      "parameters": {
+        "name": "={{ $node[\"產生剪輯命令1\"].json[\"outputPath\"].split(\"/\").pop() }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "1ja5Yx2EzScDuSQv1d5sz4xPoPjtHn_D4",
+          "mode": "list",
+          "cachedResultName": "AI 影片精華",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1ja5Yx2EzScDuSQv1d5sz4xPoPjtHn_D4"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -608,
+        816
+      ],
+      "id": "3e888d8c-c253-4c2a-b17c-7326016f9a68",
+      "name": "上傳影片",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "EickCpi8fyJ5UHtN",
+          "name": "Google Drive account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "下載影片": {
+      "main": [
+        [
+          {
+            "node": "影片寫入",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "命名變數",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "命名變數": {
+      "main": [
+        [
+          {
+            "node": "下載模板圖片",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "下載字幕": {
+      "main": [
+        [
+          {
+            "node": "字幕寫入",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "轉成文字檔": {
+      "main": [
+        [
+          {
+            "node": "重點整理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "影片寫入": {
+      "main": [
+        [
+          {
+            "node": "下載字幕",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "字幕寫入": {
+      "main": [
+        [
+          {
+            "node": "轉成文字檔",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "重點整理": {
+      "main": [
+        [
+          {
+            "node": "移除 markdown 標記 + 轉成 JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "讀取影片",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "剪輯",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "移除 markdown 標記 + 轉成 JSON": {
+      "main": [
+        [
+          {
+            "node": "產生剪輯命令1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "產生剪輯命令1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "剪輯": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "下載模板圖片": {
+      "main": [
+        [
+          {
+            "node": "模板寫入",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "模板寫入": {
+      "main": [
+        [
+          {
+            "node": "下載影片",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "讀取影片": {
+      "main": [
+        [
+          {
+            "node": "上傳影片",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "f48e3e9b-08bd-4899-b476-4ae5926843db",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a23b4820fe3b701625b3a1d43bcd07de547c008709de7f4aa30a706d2a646fd3"
+  },
+  "id": "Ki5OZUX2EqJ0o0Rz",
+  "tags": []
+}
