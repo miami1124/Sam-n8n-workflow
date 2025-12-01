@@ -10,7 +10,7 @@
     * **Shorts 自動化**：利用 GPT-4o 挑選精華片段，結合 FFmpeg 自動裁切、合成直式短影音。
     * **智能剪輯**：自動化音訊切割與轉檔流程，突破 API 限制。
 
-* **🌍 內容出海與 SEO (Localization & SEO)**
+* **🌍 國際化內容與 SEO (Localization & SEO)**
     * **字幕國際化工廠**：自動將中文字幕翻譯為英文，並同步更新 YouTube 影片 Metadata。
     * **SEO 結構化**：AI 自動生成帶時間碼（Timestamp）的章節摘要，提升搜尋權重。
 
