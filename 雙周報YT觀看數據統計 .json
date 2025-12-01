@@ -1,0 +1,608 @@
+{
+  "name": "攝影中心 新雙周報統計 v2",
+  "nodes": [
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cbcc6c78-4776-4b43-a214-87db3ce81b2b",
+              "name": "startDate",
+              "value": "={{ new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] }}",
+              "type": "string"
+            },
+            {
+              "id": "beb2fe74-1bd9-4a8d-9a61-59c47962cc8c",
+              "name": "endDate",
+              "value": "={{ new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "de9693c5-cbcc-4241-b938-622c62252bde",
+      "name": "設定雙週區間",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        704,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o",
+        "options": {}
+      },
+      "id": "46e3109b-f2eb-46ba-8882-8720282c45af",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [
+        848,
+        240
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "SurDrPrkGuJWzfOV",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": " // 對照表：月份對應的 Google Sheet\nconst sheets = {\n  7: \"https://docs.google.com/spreadsheets/d/1icJN218LwG8AwI0kq2lB0pr2Yvf-D9DReZRfFskprJY/edit\",\n  8: \"https://docs.google.com/spreadsheets/d/1rDUOoGldqLyQCkn77h0zHp29wkpXveYo6yzbO5wyzdg/edit\",\n  9: \"https://docs.google.com/spreadsheets/d/1POFgClnDRJYztUXctsOU1hLaS_DyhEW1bUdjJAlf_HQ/edit\",\n  10: \"https://docs.google.com/spreadsheets/d/1sTCRW3kfNrpRTjL5fuUJ-Laf15Gs2fxXNsXr9QxW3-8/edit\",\n  11: \"https://docs.google.com/spreadsheets/d/1lLubxQnjer6GH1jdbNcoYBielf1A6BMmzI5Qjv-xhys/edit\",\n  12: \"https://docs.google.com/spreadsheets/d/1_KKcBe0S0yiiaNi0YCy3ishAWr78p7V8WTlua3e67P8/edit\"\n};\n\n// 先將 output 的字串轉為物件\nconst parsed = JSON.parse($json.output);\n\n// 回傳對應每個月份的 sheetUrl\nreturn parsed.months.map(month => ({\n  json: {\n    month,\n    isCrossMonth: parsed.isCrossMonth,\n    sheetUrl: sheets[month]\n  }\n}));\n"
+      },
+      "id": "c59e653c-74d0-4d52-8449-ef900e0d5886",
+      "name": "取得對應月份的 Sheet 清單",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1184,
+        64
+      ],
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $json.sheetUrl }}",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "NN橫式",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1icJN218LwG8AwI0kq2lB0pr2Yvf-D9DReZRfFskprJY/edit#gid=0"
+        },
+        "options": {}
+      },
+      "id": "6da611ab-e9d2-4d5c-9359-22379d9eb185",
+      "name": "抓取所有資料",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1392,
+        400
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "UYRKmacmDUxEGHHa",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const startDate = new Date($node[\"設定雙週區間\"].json.startDate);\nconst endDate = new Date($node[\"設定雙週區間\"].json.endDate);\nendDate.setDate(endDate.getDate() + 1); // 包含整個 endDate 當天\n\nconsole.log('Start:', startDate.toISOString());\nconsole.log('End:', endDate.toISOString());\n\nreturn items.filter(item => {\n  const raw = item.json[\"日期\"];  // ← 改這裡\n  if (!raw) {\n    console.log(\"❌ 缺少日期欄位\", item.json);\n    return false;\n  }\n\n  const dateStr = raw.trim().replace(/\\//g, '-');\n  const currentDate = new Date(dateStr);\n\n  if (isNaN(currentDate)) {\n    console.log(\"❌ 無法解析日期\", raw, item.json);\n    return false;\n  }\n\n  const inRange = currentDate >= startDate && currentDate < endDate;\n  if (!inRange) {\n    console.log(\"⏭ 超出範圍\", currentDate.toISOString());\n  }\n\n  return inRange;\n});\n\n"
+      },
+      "id": "0c6e794d-a944-4811-810c-69cf5e1e1cf5",
+      "name": "篩選雙週內影片",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1424,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  const url = item.json[\"網址\"];  // ← 對應你的實際欄位\n  let videoId = null;\n\n  try {\n    const match = url.match(/[?&]v=([^&]+)/) || url.match(/youtu\\.be\\/([^?&]+)/);\n    videoId = match ? match[1] : null;\n  } catch (e) {\n    videoId = null;\n  }\n\n  return {\n    json: {\n      ...item.json,\n      videoId,\n    }\n  };\n});\n"
+      },
+      "id": "6d7365c3-456e-4ac9-961a-878a08e710f6",
+      "name": "抓影片ID出來1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/youtube/v3/videos?part=statistics&id={{$json[\"videoId\"]}}&key=AIzaSyBhOyGN4QwMoEYOivB1SqIvzPtYEd3o6-M",
+        "options": {}
+      },
+      "id": "d690ecea-bc71-4dec-860b-a02b50cfe2bd",
+      "name": "抓YT資料",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1744,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "09fceff0-984a-4d85-adab-2ce4322c2baf",
+              "name": "youtube觀看數",
+              "value": "={{ $json.items && $json.items.length > 0 ? $json.items[0].statistics.viewCount : 0 }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "82f28492-843e-4f22-b588-98a8bd2efedc",
+      "name": "把觀看數取出來",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1920,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1EKV4uor7dVikADRAm43fT30N48lTLzbgDcNia-A99Z4/edit?usp=sharing",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "工作表1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1EKV4uor7dVikADRAm43fT30N48lTLzbgDcNia-A99Z4/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "影音新聞標題": "={{ $('篩選雙週內影片').item.json['標題'] }}",
+            "剪輯者": "={{ $('篩選雙週內影片').item.json['剪輯'] }}",
+            "日期": "={{ $('篩選雙週內影片').item.json['日期'] }}",
+            "YouTube網址": "={{ $('篩選雙週內影片').item.json['網址'] }}",
+            "youtube觀看數": "={{ $json['youtube觀看數'] }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "影音新聞標題",
+              "displayName": "影音新聞標題",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "剪輯者",
+              "displayName": "剪輯者",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "日期",
+              "displayName": "日期",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "YouTube網址",
+              "displayName": "YouTube網址",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "youtube觀看數",
+              "displayName": "youtube觀看數",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "aafc8517-b483-4905-bb69-921c3397a508",
+      "name": "填表單",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2080,
+        64
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "UYRKmacmDUxEGHHa",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 3bouDFiYSJjywpeabD92StKA4igBAhENo0c/lAkJFnT8kayLLZfd6fs9ROjsX63civT82dWltwFjr9qf7dqRg91LmLEOh4w3MxsLfyILwqKEIwS7MV9YcQLpwDbQIYJTKhfLRytnlk/Hz9a5ls00HQdB04t89/1O/w1cDnyilFU="
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to\": \"U6a4051333dfbf95ae8696ca2bda26802\",\n  \"messages\": [\n    {\n      \"type\": \"text\",\n      \"text\": \"{{ $json.message }}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "bd0b84aa-6700-407e-a29d-13b12668311d",
+      "name": "LINE通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2448,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e93acee2-9895-4fbc-b8f3-9b7fa5f492e5",
+              "leftValue": "={{ $json.body.events[0].message.text }}",
+              "rightValue": "雙周報",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "0c069c2e-c01a-499b-8627-1afeabbf63fa",
+              "leftValue": "={{ $json.body.events[0].message.text }}",
+              "rightValue": "雙週報",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "6d649495-3b34-4074-a22b-3674afaee58d",
+      "name": "If",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        512,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 強制只回傳一筆資料，讓後續節點（LINE）只跑一次\nreturn [\n  {\n    json: {\n      message: \"雙週報已完成✅https://docs.google.com/spreadsheets/d/1EKV4uor7dVikADRAm43fT30N48lTLzbgDcNia-A99Z4/edit?usp=sharing\"\n    }\n  }\n];"
+      },
+      "id": "8422548b-ea48-4b23-84bd-ee1db4d530b0",
+      "name": "統整",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2288,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "8d95c3e9-976a-4159-924f-bcad7c94fee0",
+      "name": "Loop Over Items",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1232,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=我有一個報表統計需求，會輸入一段日期區間。\n\nstartDate 是：{{$json[\"startDate\"]}}  \nendDate 是：{{$json[\"endDate\"]}}\n\n請幫我判斷這段區間跨哪些月份（用整數表示），例如 [7, 8]，並請判斷是否「跨月」。\n\n請回傳乾淨的 JSON，格式如下：\n\n{\n  \"months\": [7, 8],         // 請回傳數字陣列（必填）\n  \"isCrossMonth\": true      // 如果同月請回傳 false\n}\n\n⚠️ 回傳格式只需純 JSON，不要加 markdown 的 ```json 包住。",
+        "options": {}
+      },
+      "id": "b3830fea-59e9-44a6-82a0-498517ba80cd",
+      "name": "判斷需要哪些月份表單",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        864,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "weeklyreport",
+        "options": {}
+      },
+      "id": "4c98f037-9f4b-44cd-b12a-592323380587",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        352,
+        160
+      ],
+      "webhookId": "a0d68a63-1c4f-430c-9cbe-b70f3893ff87"
+    }
+  ],
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "nnphotocenter.zeabur.app",
+            "user-agent": "LineBotWebhook/2.0",
+            "content-length": "574",
+            "content-type": "application/json; charset=utf-8",
+            "x-forwarded-for": "147.92.149.168, 147.92.149.168",
+            "x-forwarded-host": "nnphotocenter.zeabur.app",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-line-signature": "f8unYjTmfDRBet9rx8q7WRRXr/jMvPlw0CpY+9DwciY=",
+            "x-real-ip": "147.92.149.168",
+            "x-zeabur-container-port": "5678",
+            "x-zeabur-ip-country": "JP",
+            "x-zeabur-request-id": "hnd1::0020cff3-e112-4342-b540-b7f50526f3f8",
+            "accept-encoding": "gzip"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "destination": "U109d3362de1034f4cf7a938ba3238d46",
+            "events": [
+              {
+                "type": "message",
+                "message": {
+                  "type": "text",
+                  "id": "586060122624098679",
+                  "quoteToken": "FuDrsWrl3RZd4iRY220azqsixpe7l3yZoIdD0bmWy9jApNuONvzwo8D1ih3gEbSYEhmbf7VqPusKREARwCbTHVD3OUDEQnzAig0Vzh4XAiKz5jEBsw7TMvdj8roBwXD3dDbBUomHxjg3Nu_m54MCAQ",
+                  "text": "幫我做雙周報"
+                },
+                "webhookEventId": "01K945H7CS562TEEG5HR1PC04X",
+                "deliveryContext": {
+                  "isRedelivery": false
+                },
+                "timestamp": 1762150358270,
+                "source": {
+                  "type": "user",
+                  "userId": "U6a4051333dfbf95ae8696ca2bda26802"
+                },
+                "replyToken": "6e1a88cfdd304749960e88e6ac1f13dd",
+                "mode": "active"
+              }
+            ]
+          },
+          "webhookUrl": "https://nnphotocenter.zeabur.app/webhook-test/weeklyreport",
+          "executionMode": "test"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "設定雙週區間": {
+      "main": [
+        [
+          {
+            "node": "判斷需要哪些月份表單",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "判斷需要哪些月份表單",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "取得對應月份的 Sheet 清單": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "抓取所有資料": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "抓影片ID出來1": {
+      "main": [
+        [
+          {
+            "node": "抓YT資料",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "抓YT資料": {
+      "main": [
+        [
+          {
+            "node": "把觀看數取出來",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "把觀看數取出來": {
+      "main": [
+        [
+          {
+            "node": "填表單",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "篩選雙週內影片": {
+      "main": [
+        [
+          {
+            "node": "抓影片ID出來1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "填表單": {
+      "main": [
+        [
+          {
+            "node": "統整",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "設定雙週區間",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "統整": {
+      "main": [
+        [
+          {
+            "node": "LINE通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "篩選雙週內影片",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "抓取所有資料",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "判斷需要哪些月份表單": {
+      "main": [
+        [
+          {
+            "node": "取得對應月份的 Sheet 清單",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Taipei",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "4de98c5c-47e8-46b8-be27-7782bc3617fd",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c69dd2597370f5826ae20c1a948b264d03399fec2875780a8757da55e519fbc2"
+  },
+  "id": "feAlfuZDMWQvEnJI",
+  "tags": []
+}
