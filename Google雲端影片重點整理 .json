@@ -1,0 +1,631 @@
+{
+  "name": "雲端影片時間軸重點 final",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -112,
+        64
+      ],
+      "id": "e666b2db-b0c3-4de1-b97d-775cd834b342",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "command": "={{ $('產生 ffmpeg 切割命令').item.json.command }}"
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        752,
+        64
+      ],
+      "id": "c4b95eaf-cad2-4c5b-9773-bc984f2e869f",
+      "name": "音訊切割每60秒"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/tmp/split_*.mp3",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        928,
+        64
+      ],
+      "id": "470725d7-a1f2-441e-a132-6d07a2c4e344",
+      "name": "讀取分段音訊"
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1152,
+        64
+      ],
+      "id": "61ec318d-686b-4955-b8c4-af2758271da2",
+      "name": "逐段處理音訊"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/audio/transcriptions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "whisper-1"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "response_format",
+              "value": "srt"
+            },
+            {
+              "name": "prompt",
+              "value": "使用繁體中文"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1328,
+        160
+      ],
+      "id": "785cf431-91c4-4ae2-a907-3bd1c4f8b684",
+      "name": "音訊轉字幕",
+      "credentials": {
+        "openAiApi": {
+          "id": "dvFQiP3wnloi1k4P",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "function parseTime(timeStr) {\n  const [hours, minutes, rest] = timeStr.split(':');\n  const [seconds, milliseconds] = rest.split(',');\n  return (\n    parseInt(hours) * 3600 * 1000 +\n    parseInt(minutes) * 60 * 1000 +\n    parseInt(seconds) * 1000 +\n    parseInt(milliseconds)\n  );\n}\n\nfunction formatTime(ms) {\n  const hours = String(Math.floor(ms / 3600000)).padStart(2, '0');\n  ms %= 3600000;\n  const minutes = String(Math.floor(ms / 60000)).padStart(2, '0');\n  ms %= 60000;\n  const seconds = String(Math.floor(ms / 1000)).padStart(2, '0');\n  const milliseconds = String(ms % 1000).padStart(3, '0');\n  return `${hours}:${minutes}:${seconds},${milliseconds}`;\n}\n\nlet combinedSrt = '';\nlet index = 1;\nlet offset = 0; // 初始偏移時間：0 毫秒\nconst segmentDuration = 60000; // 每段音訊是 60 秒（60000 毫秒）\n\nfor (let i = 0; i < items.length; i++) {\n  const srt = items[i].json.data || items[i].json.fullSrt || items[i].json.text;\n  if (!srt) continue;\n\n  const lines = srt.trim().split('\\n');\n  let j = 0;\n\n  while (j < lines.length) {\n    if (!lines[j].includes('-->')) {\n      j++;\n      continue;\n    }\n\n    const timeLine = lines[j];\n    const contentLines = [];\n\n    j++;\n    while (j < lines.length && lines[j].trim() !== '') {\n      contentLines.push(lines[j]);\n      j++;\n    }\n\n    const [start, end] = timeLine.split(' --> ');\n    const adjustedStart = formatTime(parseTime(start) + offset);\n    const adjustedEnd = formatTime(parseTime(end) + offset);\n\n    combinedSrt += `${index}\\n${adjustedStart} --> ${adjustedEnd}\\n${contentLines.join('\\n')}\\n\\n`;\n    index++;\n    j++;\n  }\n\n  offset += segmentDuration;\n}\n\nreturn [\n  {\n    json: {\n      fullSrt: combinedSrt\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1536,
+        160
+      ],
+      "id": "a6198b93-20a1-45b6-8a88-84c7ceafdda3",
+      "name": "調整字幕時間(單段)"
+    },
+    {
+      "parameters": {
+        "fieldsToAggregate": {
+          "fieldToAggregate": [
+            {
+              "fieldToAggregate": "fullSrt"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1328,
+        -48
+      ],
+      "id": "187a44be-6dc4-4840-86b6-a733f7293bac",
+      "name": "聚合全部字幕段"
+    },
+    {
+      "parameters": {
+        "jsCode": "function parseTime(timeStr) {\n  const [hours, minutes, rest] = timeStr.split(':');\n  const [seconds, milliseconds] = rest.split(',');\n  return (\n    parseInt(hours) * 3600 * 1000 +\n    parseInt(minutes) * 60 * 1000 +\n    parseInt(seconds) * 1000 +\n    parseInt(milliseconds)\n  );\n}\n\nfunction formatTime(ms) {\n  const hours = String(Math.floor(ms / 3600000)).padStart(2, '0');\n  ms %= 3600000;\n  const minutes = String(Math.floor(ms / 60000)).padStart(2, '0');\n  ms %= 60000;\n  const seconds = String(Math.floor(ms / 1000)).padStart(2, '0');\n  const milliseconds = String(ms % 1000).padStart(3, '0');\n  return `${hours}:${minutes}:${seconds},${milliseconds}`;\n}\n\nconst allBlocks = $json.fullSrt; // 這是你的字幕段陣列\nlet combined = '';\nlet offset = 0;\nlet globalIndex = 1;\nconst segmentDuration = 60000; // 每段長度（60秒 = 60000ms），如需調整可改這裡\n\nfor (const srtText of allBlocks) {\n  const lines = srtText.split('\\n');\n  let i = 0;\n\n  while (i < lines.length) {\n    // 檢查是否為時間線（例如 00:00:00,000 --> 00:00:05,500）\n    if (!lines[i].includes('-->')) {\n      i++;\n      continue;\n    }\n\n    const timeLine = lines[i];\n    const [start, end] = timeLine.split(' --> ').map(t => t.trim());\n    \n    // 加上當前的偏移時間\n    const startMs = parseTime(start) + offset;\n    const endMs = parseTime(end) + offset;\n\n    let textLines = [];\n    i++;\n    while (i < lines.length && lines[i].trim() !== '') {\n      textLines.push(lines[i]);\n      i++;\n    }\n\n    // 格式化並加入合併後的字幕\n    combined += `${globalIndex}\\n${formatTime(startMs)} --> ${formatTime(endMs)}\\n${textLines.join('\\n')}\\n\\n`;\n    globalIndex++;\n    i++;\n  }\n\n  // **** 修正後的邏輯：直接累加固定的段落時間 ****\n  // 由於 FFmpeg 是嚴格按 60 秒切割，我們應使用固定的 60000ms 作為下一段的起始偏移。\n  offset += segmentDuration;\n  // **********************************************\n}\n\nreturn [{ json: { finalSRT: combined } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1536,
+        -48
+      ],
+      "id": "4cef5ddc-69ec-4a6c-a247-662525837e67",
+      "name": "整合全片字幕時間軸"
+    },
+    {
+      "parameters": {
+        "command": "rm -f /tmp/split_*.mp3"
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        576,
+        64
+      ],
+      "id": "9e8be565-93d9-4df1-8acc-1eb2dc8138ff",
+      "name": "清空舊的 split 檔案"
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "https://drive.google.com/file/d/1q1FPCfJ9Mtl5eNJiUxluTsutFeZa5FAB/view?usp=drive_link",
+          "mode": "url"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        64,
+        64
+      ],
+      "id": "3da6cc4a-39f6-4d5e-930b-72e386df5d1b",
+      "name": "下載影片",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "EickCpi8fyJ5UHtN",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/tmp/a.MP4",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        208,
+        64
+      ],
+      "id": "180eb500-9c00-4919-b87a-f25250af6781",
+      "name": "寫入本地檔案"
+    },
+    {
+      "parameters": {
+        "outputFormat": "aac"
+      },
+      "type": "@cloudconvert/n8n-nodes-cloudconvert.cloudConvert",
+      "typeVersion": 1,
+      "position": [
+        48,
+        384
+      ],
+      "id": "866671ab-090e-4524-8338-70def51ee282",
+      "name": "將 MP4 轉換為 AAC",
+      "credentials": {
+        "cloudConvertOAuth2Api": {
+          "id": "lBkePJh20tDsJn6F",
+          "name": "CloudConvert account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{'/tmp/' + $binary.data.fileName}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        240,
+        384
+      ],
+      "id": "ba98d27a-51bf-4f4f-bf54-be671176b5da",
+      "name": "將 AAC 檔案寫入"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 注意：我們假設上一個節點「寫入本地檔案」成功將影片寫入 /tmp/a.MP4\n// 即使檔名是動態的，只要確保路徑正確即可。\n// 由於您在「寫入本地檔案」節點指定了 fileName: \"/tmp/a.MP4\"，我們直接使用它。\n\nconst inputFilePath = \"/tmp/a.MP4\";\n\n// 新的 FFmpeg 命令：\n// -i /tmp/a.MP4: 指定輸入檔案\n// -map 0:a: 確保只選擇音軌 (避免處理影片流)\n// -f segment -segment_time 60: 設定分段模式，每段 60 秒\n// -c:a libmp3lame -b:a 128k: 指定編碼器和位元率為 MP3\n// /tmp/split_%03d.mp3: 輸出檔名格式\nconst cmd = `/root/.n8n/tools/ffmpeg -i ${inputFilePath} -map 0:a -f segment -segment_time 60 -c:a libmp3lame -b:a 128k /tmp/split_%03d.mp3`;\n\nreturn [{ json: { command: cmd } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        64
+      ],
+      "id": "770736af-cda6-441a-900e-561109dd3ced",
+      "name": "產生 ffmpeg 切割命令"
+    },
+    {
+      "parameters": {
+        "content": "影片下載與轉換\n",
+        "height": 224,
+        "width": 512
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -160,
+        0
+      ],
+      "typeVersion": 1,
+      "id": "b69415c1-301b-4f5d-95a8-c4c3b224aea3",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "音訊切割",
+        "height": 240,
+        "width": 704,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        368,
+        0
+      ],
+      "typeVersion": 1,
+      "id": "7d471c1e-9e7b-441f-ae82-4b8b9cc57ac7",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "逐段辨識 + 字幕時間校正",
+        "height": 480,
+        "width": 608,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1088,
+        -80
+      ],
+      "typeVersion": 1,
+      "id": "29dd2be5-ab69-489e-94b5-4b47869af8d8",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "GPT-4O"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=你是一位資深新聞媒體文字工作者，擅長以影片字幕撰寫 SEO 友善的 YouTube 說明欄時間軸摘要\n請閱讀提供的 SRT 字幕內容，挑選重點並輸出格式化摘要\n\n⚠️ 請嚴格遵守以下格式與規則：\n1. 僅允許使用【繁體中文】，不得出現任何簡體字\n2. 若有簡體字詞，自動轉換為正體中文詞彙再輸出\n3. 不得使用任何 \\n、\\r 或 HTML 標籤換行\n4. 每段內容請用「實際換行」（Enter）分行\n5. 每行開頭不得出現任何符號、標點或英文字母\n\n第一階段（主旨摘要）規則如下:\n- 請用一句話概括影片的主題、主角與關鍵事件\n- 內容需精簡扼要，不超過 25 個繁體中文字\n- 句子結構自然，可使用標點符號\n- 僅允許使用純繁體中文，不可使用簡體字\n- 嚴禁換行，輸出為單一行文字\n\n第二階段（時間軸摘要）規則如下：\n- 摘要影片中最具代表性的段落，每段 1 句為主，必要時最多 2 句\n- 每句話 **不得超過 20 個中文字**，務必「簡潔扼要」、「聚焦重點」\n- 使用字幕「開始時間」作為時間碼，格式為 MM:SS（省略小時與毫秒）\n- 每段格式為：MM:SS 內容摘要\n- 每段結尾不得有標點\n- 每段獨立一行，不可有空行\n- 摘要時間碼必須依照原始 SRT 檔案順序排列，不能重排\n- **嚴禁輸出時間碼為 00:00 的段落**\n\n✅ 最後一段時間碼不得早於前一段時間碼，時間碼必須持續遞增\n\n✅ 請依照以下【格式範例】排版（模仿排版即可，禁止照抄內容）：\n\n淘寶拼多多未落地繼續販售，經濟部長表態不支持\n\n00:03 台灣非洲豬瘟破功與小包裹有關  \n00:09 淘寶未設公司難以依法管理  \n00:14 龔明鑫說明監管困難  \n00:21 立委指出淘寶只發傳單未經營  \n00:39 批評實際運作與法律脫節  \n01:33 商業署說明核准範圍有限  \n01:42 民眾多直接在中國平台購物  \n\n📌 請產出與上方格式一致的摘要結果，但根據我提供的字幕內容生成。\n📌 輸出時禁止出現「第一階段」、「第二階段」等標題文字，也禁止模仿這些提示語。\n\n以下是字幕內容：\n{{ $json.formattedSRT }}\n\n請依據上方規則輸出摘要結果"
+            },
+            {
+              "content": "你是頂級的影片內容摘要專家，專門將繁體中文的 SRT 字幕整理成極度精簡、專業、結構化的時間軸重點。你的輸出必須只包含重點摘要，嚴禁任何解釋性或引導性文字。",
+              "role": "system"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        1936,
+        -48
+      ],
+      "id": "ab728edb-c258-40c6-8e67-907f3a5a0637",
+      "name": "重點整理",
+      "credentials": {
+        "openAiApi": {
+          "id": "dvFQiP3wnloi1k4P",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "重點整理與輸出\n",
+        "height": 240,
+        "width": 816,
+        "color": 2
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1728,
+        -96
+      ],
+      "typeVersion": 1,
+      "id": "12ed010e-d021-4f7e-b52f-b510ab11b9b1",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "content": "問題1:\n有外語部分會出現時軸對不起來 (看起來是不會翻譯)\n\n問題2:\n可嘗試轉成英文之後再轉中文產出",
+        "height": 128,
+        "width": 784,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -432,
+        -208
+      ],
+      "typeVersion": 1,
+      "id": "4da4ab4f-3c33-4576-8859-7c202ff55ef0",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "command": "rm -f /tmp/a.MP4 /tmp/*.aac /tmp/split_*.mp3"
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        2400,
+        -48
+      ],
+      "id": "4ae140fe-b0ad-4751-a114-bda7de4593ff",
+      "name": "清理臨時檔案"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer uyFsNxbqCu+sqt0mCb3CUl+lg/pW2yHPc9am9H9FSTB/WFFMPzcKx94wpVlbU4vs08uVgTwlzoBQcRQS4iuTIn/SwZXqYO6W6oqc9zDdqkIibcatRtdYNf2jTX2+1nMiHhLXK1J3xWLvq/OKupiNsAdB04t89/1O/w1cDnyilFU="
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to\": \"U970d6e484607445514ee7a7ea31e3dca\",\n  \"messages\": [\n    {\n      \"type\": \"text\",\n      \"text\": {{ JSON.stringify($json.message.content) }}\n    }\n  ]\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2240,
+        -48
+      ],
+      "id": "0b33cf08-4c8c-4fd6-8820-cf55557fece7",
+      "name": "LINE通知",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const srt = $json.finalSRT;\n\nconst segments = srt\n  .split('\\n\\n')\n  .map(block => {\n    const lines = block.trim().split('\\n');\n    if (lines.length < 3) return null;\n\n    const [index, timeLine, ...textLines] = lines;\n    const [startRaw, endRaw] = timeLine.split(' --> ');\n\n    const formatTime = t => {\n      const [h, m, sMs] = t.split(':');\n      const s = sMs.split(',')[0];\n      return `${parseInt(h) * 60 + parseInt(m)}:${s.padStart(2, '0')}`;\n    };\n\n    const start = formatTime(startRaw);\n    const end = formatTime(endRaw);\n    const text = textLines.join(' ');\n\n    return `${start} ~ ${end} ${text}`;\n  })\n  .filter(Boolean);\n\nreturn [{ json: { formattedSRT: segments.join('\\n') } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        -48
+      ],
+      "id": "1bf804e7-0861-4a6d-8d21-16c7be7e61bd",
+      "name": "轉換時間軸格式"
+    }
+  ],
+  "pinData": {
+    "When clicking ‘Execute workflow’": [
+      {
+        "json": {}
+      }
+    ]
+  },
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "下載影片",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "讀取分段音訊": {
+      "main": [
+        [
+          {
+            "node": "逐段處理音訊",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "逐段處理音訊": {
+      "main": [
+        [
+          {
+            "node": "聚合全部字幕段",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "音訊轉字幕",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "音訊轉字幕": {
+      "main": [
+        [
+          {
+            "node": "調整字幕時間(單段)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "調整字幕時間(單段)": {
+      "main": [
+        [
+          {
+            "node": "逐段處理音訊",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "聚合全部字幕段": {
+      "main": [
+        [
+          {
+            "node": "整合全片字幕時間軸",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "音訊切割每60秒": {
+      "main": [
+        [
+          {
+            "node": "讀取分段音訊",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "整合全片字幕時間軸": {
+      "main": [
+        [
+          {
+            "node": "轉換時間軸格式",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "清空舊的 split 檔案": {
+      "main": [
+        [
+          {
+            "node": "音訊切割每60秒",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "下載影片": {
+      "main": [
+        [
+          {
+            "node": "寫入本地檔案",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "寫入本地檔案": {
+      "main": [
+        [
+          {
+            "node": "產生 ffmpeg 切割命令",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "將 MP4 轉換為 AAC": {
+      "main": [
+        [
+          {
+            "node": "將 AAC 檔案寫入",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "將 AAC 檔案寫入": {
+      "main": [
+        []
+      ]
+    },
+    "產生 ffmpeg 切割命令": {
+      "main": [
+        [
+          {
+            "node": "清空舊的 split 檔案",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "重點整理": {
+      "main": [
+        [
+          {
+            "node": "LINE通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LINE通知": {
+      "main": [
+        [
+          {
+            "node": "清理臨時檔案",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "轉換時間軸格式": {
+      "main": [
+        [
+          {
+            "node": "重點整理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "782e3269-3c74-4911-bcc0-e55322b0d42b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a23b4820fe3b701625b3a1d43bcd07de547c008709de7f4aa30a706d2a646fd3"
+  },
+  "id": "Pp6k3j9MLqVYOU98",
+  "tags": []
+}
