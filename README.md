@@ -1,38 +1,44 @@
-# ⚡ [Sam] 的 n8n 自動化實驗室 (My n8n Automation Lab)
+⚡ [Sam]'s n8n Automation Lab
+Welcome to my automation repository! Here, you will find the n8n Workflow templates that I use daily, have tested thoroughly, and find highly effective.
 
-歡迎來到我的自動化倉庫！這裡存放了我日常使用、測試過覺得好用的 **n8n Workflow 模板**。
+🧩 Automation Categories
+This repository focuses on solving pain points for video creators, covering three core areas:
 
-## 🧩 包含的自動化領域 (Automation Categories)
+🤖 AI Video Post-Production
 
-這個倉庫專注於解決影音創作者的痛點，主要涵蓋以下三大核心領域：
+Shorts Automation: Uses GPT-4o to select highlights, combined with FFmpeg to automatically crop and synthesize vertical short-form videos.
 
-* **🤖 AI 影音後製 (AI Video Post-Production)**
-    * **Shorts 自動化**：利用 GPT-4o 挑選精華片段，結合 FFmpeg 自動裁切、合成直式短影音。
-    * **智能剪輯**：自動化音訊切割與轉檔流程，突破 API 限制。
+Smart Editing: Automates audio splitting and transcoding processes to bypass API limitations.
 
-* **🌍 國際化內容與 SEO (Localization & SEO)**
-    * **字幕國際化工廠**：自動將中文字幕翻譯為英文，並同步更新 YouTube 影片 Metadata。
-    * **SEO 結構化**：AI 自動生成帶時間碼（Timestamp）的章節摘要，提升搜尋權重。
+🌍 Content Localization & SEO
 
-* **📊 頻道數據自動化 (Channel Analytics Ops)**
-    * **成效追蹤**：整合 YouTube Data API，自動撈取觀看數據。
-    * **自動匯報**：定期生成雙週報表並推送到 LINE，省去人工拉表時間。
+Subtitle Localization Factory: Automatically translates Chinese subtitles into English and syncs updates to YouTube video metadata.
 
-## 🚀 如何使用 (How to Use)
+Structured SEO: AI generates chapter summaries with timestamps to improve search rankings.
 
-所有的模板都以 `.json` 格式儲存。
+📊 Channel Analytics Ops
 
-1. **尋找模板**：瀏覽上方的列表或資料夾，找到你感興趣的自動化流程。
-2. **獲取代碼**：進入該資料夾，下載檔案
-3. **匯入 n8n**：
-   * 在你的 n8n 畫布介面。
-   * 點選 `Import from...` > `From File` 或直接貼上代碼 (Ctrl+V)。
-4. **設定憑證**：
-  * 匯入後，請點擊紅色的節點，綁定你自己的帳號 (Credentials)。
+Performance Tracking: Integrates with the YouTube Data API to automatically fetch viewing data.
 
-* 涉及 API 呼叫（如 OpenAI）可能會產生費用，請自行監控用量。
-* 使用前請確保你理解流程邏輯，以免誤刪重要資料。
+Automated Reporting: Generates bi-weekly reports and pushes them to LINE, saving time on manual spreadsheet compilation.
 
----
-如果你喜歡這些模板，歡迎給這個 Repo 一個星星 ⭐️！
-有任何建議或想許願新的自動化流程，歡迎在 Issues 留言。
+🚀 How to Use
+All templates are stored in .json format.
+
+Find a Template: Browse the list or folders above to find the automation workflow that interests you.
+
+Get the Code: Enter the folder and download the file.
+
+Import to n8n:
+
+Go to your n8n canvas interface.
+
+Click Import from... > From File or simply paste the code (Ctrl+V).
+
+Configure Credentials:
+
+After importing, click on the red nodes to bind your own account credentials.
+
+Note: API calls (e.g., OpenAI) may incur costs; please monitor your usage accordingly.
+
+Please ensure you understand the workflow logic before use to avoid accidentally deleting important data.
